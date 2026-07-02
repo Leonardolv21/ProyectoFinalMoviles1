@@ -56,6 +56,9 @@ interface PredictionDao {
     @Query("SELECT * FROM predictions")
     suspend fun getAllPredictions(): List<PredictionEntity>
 
+    @Query("SELECT * FROM predictions WHERE matchId = :matchId LIMIT 1")
+    suspend fun getPredictionByMatch(matchId: Int): PredictionEntity?
+
     @Upsert
     suspend fun insertPredictions(predictions: List<PredictionEntity>)
 
@@ -88,4 +91,13 @@ interface ParticipantDao {
 
     @Query("DELETE FROM participants WHERE groupId = :groupId")
     suspend fun deleteByGroup(groupId: Int)
+}
+
+@Dao
+interface SyncMetadataDao {
+    @Query("SELECT value FROM sync_metadata WHERE `key` = :key")
+    suspend fun getValue(key: String): String?
+
+    @Upsert
+    suspend fun upsert(metadata: SyncMetadataEntity)
 }

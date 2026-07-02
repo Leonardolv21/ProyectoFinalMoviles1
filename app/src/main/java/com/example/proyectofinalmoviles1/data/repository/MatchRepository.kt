@@ -2,13 +2,23 @@ package com.example.proyectofinalmoviles1.data.repository
 
 import com.example.proyectofinalmoviles1.data.api.ApiService
 import com.example.proyectofinalmoviles1.data.api.MatchResponse
+import com.example.proyectofinalmoviles1.data.api.MatchesUpdateResponse
+import com.example.proyectofinalmoviles1.data.api.apiExceptionMessage
+import com.example.proyectofinalmoviles1.data.api.parseApiError
 import com.example.proyectofinalmoviles1.data.local.dao.MatchDao
+import com.example.proyectofinalmoviles1.data.local.dao.SyncMetadataDao
 import com.example.proyectofinalmoviles1.data.local.entity.MatchEntity
+import com.example.proyectofinalmoviles1.data.local.entity.SyncMetadataEntity
 
 class MatchRepository(
     private val api: ApiService,
-    private val matchDao: MatchDao
+    private val matchDao: MatchDao,
+    private val syncMetadataDao: SyncMetadataDao
 ) {
+    private companion object {
+        const val LAST_MATCH_SYNC_KEY = "last_match_sync"
+    }
+
     suspend fun getMatches(
         next: Boolean? = null,
         phase: String? = null,
@@ -25,7 +35,7 @@ class MatchRepository(
                 }
                 Result.success(matches)
             } else {
-                Result.failure(Exception("Error al obtener partidos"))
+                Result.failure(Exception(parseApiError(response, "Error al obtener partidos")))
             }
         } catch (e: Exception) {
             if (next == true) {
@@ -38,7 +48,7 @@ class MatchRepository(
             if (cached.isNotEmpty()) {
                 Result.success(cached.map { it.toResponse() })
             } else {
-                Result.failure(e)
+                Result.failure(Exception(apiExceptionMessage(e, "Error al obtener partidos")))
             }
         }
     }
@@ -47,26 +57,28 @@ class MatchRepository(
         return try {
             val response = api.getMatchDetail(matchId)
             if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Partido no encontrado"))
+            else Result.failure(Exception(parseApiError(response, "Partido no encontrado")))
         } catch (e: Exception) {
             val cached = matchDao.getMatch(matchId)
             if (cached != null) Result.success(cached.toResponse())
-            else Result.failure(e)
+            else Result.failure(Exception(apiExceptionMessage(e, "Partido no encontrado")))
         }
     }
 
-    suspend fun getUpdates(since: String?): Result<com.example.proyectofinalmoviles1.data.api.MatchesUpdateResponse> {
+    suspend fun syncUpdates(): Result<MatchesUpdateResponse> {
         return try {
+            val since = syncMetadataDao.getValue(LAST_MATCH_SYNC_KEY)
             val response = api.getMatchUpdates(since)
             if (response.isSuccessful) {
                 val body = response.body()!!
                 matchDao.insertMatches(body.matches.map { it.toEntity() })
+                syncMetadataDao.upsert(SyncMetadataEntity(LAST_MATCH_SYNC_KEY, body.synced_at))
                 Result.success(body)
             } else {
-                Result.failure(Exception("Error al obtener actualizaciones"))
+                Result.failure(Exception(parseApiError(response, "Error al obtener actualizaciones")))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(apiExceptionMessage(e, "Error al obtener actualizaciones")))
         }
     }
 

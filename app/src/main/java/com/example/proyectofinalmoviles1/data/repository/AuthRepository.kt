@@ -19,10 +19,10 @@ class AuthRepository(
                 userDao.insertUser(UserEntity(name = body.name, email = body.email))
                 Result.success(body)
             } else {
-                Result.failure(Exception(parseError(response)))
+                Result.failure(Exception(parseApiError(response, "Error al iniciar sesion")))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(apiExceptionMessage(e, "Error al iniciar sesion")))
         }
     }
 
@@ -35,10 +35,10 @@ class AuthRepository(
                 userDao.insertUser(UserEntity(name = body.name, email = body.email))
                 Result.success(body)
             } else {
-                Result.failure(Exception(parseError(response)))
+                Result.failure(Exception(parseApiError(response, "Error al registrar usuario")))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(apiExceptionMessage(e, "Error al registrar usuario")))
         }
     }
 
@@ -58,16 +58,4 @@ class AuthRepository(
 
     suspend fun getStoredToken(): String? = dataStore.getToken()
 
-    private fun parseError(response: retrofit2.Response<*>): String {
-        return try {
-            val errorBody = response.errorBody()?.string()
-            if (errorBody.isNullOrBlank()) return "Error del servidor (${response.code()})"
-            if (!errorBody.trimStart().startsWith("{")) return "Error del servidor (${response.code()})"
-            val gson = com.google.gson.GsonBuilder().setLenient().create()
-            val errorResponse = gson.fromJson(errorBody, ErrorResponse::class.java)
-            errorResponse?.message ?: "Error del servidor (${response.code()})"
-        } catch (_: Exception) {
-            "Error de conexión (${response.code()})"
-        }
-    }
 }

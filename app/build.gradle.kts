@@ -65,6 +65,7 @@ dependencies {
     implementation(libs.datastore.preferences)
 
     implementation(libs.maps.compose)
+    implementation(libs.play.services.location)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

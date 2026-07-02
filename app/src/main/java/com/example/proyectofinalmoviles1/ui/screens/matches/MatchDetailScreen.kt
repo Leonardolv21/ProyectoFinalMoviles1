@@ -19,6 +19,7 @@ import com.example.proyectofinalmoviles1.ServiceLocator
 import com.example.proyectofinalmoviles1.data.UiState
 import com.example.proyectofinalmoviles1.data.api.MatchResponse
 import com.example.proyectofinalmoviles1.data.api.PredictionResponse
+import com.example.proyectofinalmoviles1.data.local.entity.PredictionEntity
 import kotlinx.coroutines.launch
 
 class MatchDetailViewModel(application: Application) : AndroidViewModel(application) {
@@ -28,6 +29,8 @@ class MatchDetailViewModel(application: Application) : AndroidViewModel(applicat
     var matchState by mutableStateOf<UiState<MatchResponse>>(UiState.Idle)
         private set
     var predictionState by mutableStateOf<UiState<PredictionResponse>>(UiState.Idle)
+        private set
+    var existingPrediction by mutableStateOf<PredictionEntity?>(null)
         private set
     var homeScore by mutableStateOf("")
     var awayScore by mutableStateOf("")
@@ -40,6 +43,11 @@ class MatchDetailViewModel(application: Application) : AndroidViewModel(applicat
                 onSuccess = { matchState = UiState.Success(it) },
                 onFailure = { matchState = UiState.Error(it.message ?: "Error") }
             )
+            existingPrediction = predictionRepo.getPredictionForMatch(matchId)
+            existingPrediction?.let {
+                homeScore = it.homeScore.toString()
+                awayScore = it.awayScore.toString()
+            }
         }
     }
 
@@ -52,6 +60,14 @@ class MatchDetailViewModel(application: Application) : AndroidViewModel(applicat
             predictionRepo.createPrediction(matchId, h, a).fold(
                 onSuccess = {
                     predictionState = UiState.Success(it)
+                    existingPrediction = PredictionEntity(
+                        it.prediction.id,
+                        it.prediction.match_id,
+                        it.prediction.home_score,
+                        it.prediction.away_score,
+                        null,
+                        it.prediction.status
+                    )
                     predictionMessage = it.message
                 },
                 onFailure = {
@@ -95,6 +111,16 @@ fun MatchDetailScreen(
                 Text("Tu pronóstico", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
 
+                viewModel.existingPrediction?.let { prediction ->
+                    val pointsText = prediction.pointsEarned?.let { "Puntaje obtenido: $it pts" } ?: "Puntaje pendiente"
+                    Text(
+                        "Registrado: ${prediction.homeScore} - ${prediction.awayScore} · $pointsText",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(viewModel.homeScore, { viewModel.homeScore = it }, label = { Text("Goles local") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                     OutlinedTextField(viewModel.awayScore, { viewModel.awayScore = it }, label = { Text("Goles visita") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
@@ -103,7 +129,7 @@ fun MatchDetailScreen(
                 Button(
                     { viewModel.submitPrediction(matchId) },
                     enabled = match.status == "scheduled" && viewModel.homeScore.isNotBlank() && viewModel.awayScore.isNotBlank()
-                ) { Text("Registrar pronóstico") }
+                ) { Text(if (viewModel.existingPrediction == null) "Registrar pronóstico" else "Modificar pronóstico") }
 
                 viewModel.predictionMessage?.let {
                     Spacer(Modifier.height(8.dp))

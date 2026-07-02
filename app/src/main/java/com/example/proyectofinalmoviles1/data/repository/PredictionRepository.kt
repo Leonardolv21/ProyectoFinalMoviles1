@@ -4,6 +4,8 @@ import com.example.proyectofinalmoviles1.data.api.ApiService
 import com.example.proyectofinalmoviles1.data.api.MyPredictionResponse
 import com.example.proyectofinalmoviles1.data.api.PredictionRequest
 import com.example.proyectofinalmoviles1.data.api.PredictionResponse
+import com.example.proyectofinalmoviles1.data.api.apiExceptionMessage
+import com.example.proyectofinalmoviles1.data.api.parseApiError
 import com.example.proyectofinalmoviles1.data.local.dao.PredictionDao
 import com.example.proyectofinalmoviles1.data.local.entity.PredictionEntity
 
@@ -25,14 +27,10 @@ class PredictionRepository(
                 ))
                 Result.success(body)
             } else {
-                val msg = try {
-                    val gson = com.google.gson.Gson()
-                    gson.fromJson(response.errorBody()?.string(), com.example.proyectofinalmoviles1.data.api.ErrorResponse::class.java)?.message
-                } catch (_: Exception) { null }
-                Result.failure(Exception(msg ?: "No se puede pronosticar este partido"))
+                Result.failure(Exception(parseApiError(response, "No se puede pronosticar este partido")))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(apiExceptionMessage(e, "No se puede pronosticar este partido")))
         }
     }
 
@@ -47,7 +45,7 @@ class PredictionRepository(
                 })
                 Result.success(predictions)
             } else {
-                Result.failure(Exception("Error al obtener pronósticos"))
+                Result.failure(Exception(parseApiError(response, "Error al obtener pronosticos")))
             }
         } catch (e: Exception) {
             val cached = predictionDao.getAllPredictions()
@@ -57,8 +55,23 @@ class PredictionRepository(
                         com.example.proyectofinalmoviles1.data.api.MatchResponse(0, "", "", "", "", null, "", null, null, null))
                 })
             } else {
-                Result.failure(e)
+                Result.failure(Exception(apiExceptionMessage(e, "Error al obtener pronosticos")))
             }
         }
+    }
+
+    suspend fun getPredictionForMatch(matchId: Int): PredictionEntity? {
+        val remote = getMyPredictions().getOrNull()?.firstOrNull { it.match_id == matchId }
+        if (remote != null) {
+            return PredictionEntity(
+                remote.id,
+                remote.match_id,
+                remote.home_score,
+                remote.away_score,
+                remote.points_earned,
+                remote.status
+            )
+        }
+        return predictionDao.getPredictionByMatch(matchId)
     }
 }
