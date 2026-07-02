@@ -61,3 +61,9 @@ data class ParticipantEntity(
     val name: String,
     val score: Int
 )
+
+@Entity(tableName = "sync_metadata")
+data class SyncMetadataEntity(
+    @PrimaryKey val key: String,
+    val value: String
+)

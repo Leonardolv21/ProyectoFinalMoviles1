@@ -14,9 +14,10 @@ import com.example.proyectofinalmoviles1.data.local.entity.*
         MatchEntity::class,
         PredictionEntity::class,
         StadiumEntity::class,
-        ParticipantEntity::class
+        ParticipantEntity::class,
+        SyncMetadataEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -26,6 +27,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun predictionDao(): PredictionDao
     abstract fun stadiumDao(): StadiumDao
     abstract fun participantDao(): ParticipantDao
+    abstract fun syncMetadataDao(): SyncMetadataDao
 
     companion object {
         @Volatile

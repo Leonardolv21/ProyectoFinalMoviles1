@@ -22,7 +22,7 @@ class GroupRepository(
                 })
                 Result.success(groups)
             } else {
-                Result.failure(Exception("Error al obtener grupos"))
+                Result.failure(Exception(parseApiError(response, "Error al obtener grupos")))
             }
         } catch (e: Exception) {
             val cached = groupDao.getAllGroups()
@@ -40,9 +40,9 @@ class GroupRepository(
         return try {
             val response = api.createGroup(CreateGroupRequest(name))
             if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Error al crear grupo"))
+            else Result.failure(Exception(parseApiError(response, "Error al crear grupo")))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(apiExceptionMessage(e, "Error al crear grupo")))
         }
     }
 
@@ -50,15 +50,9 @@ class GroupRepository(
         return try {
             val response = api.joinGroup(JoinGroupRequest(inviteCode))
             if (response.isSuccessful) Result.success(response.body()!!)
-            else {
-                val msg = try {
-                    val gson = com.google.gson.Gson()
-                    gson.fromJson(response.errorBody()?.string(), ErrorResponse::class.java)?.message
-                } catch (_: Exception) { null }
-                Result.failure(Exception(msg ?: "Error al unirse al grupo"))
-            }
+            else Result.failure(Exception(parseApiError(response, "Error al unirse al grupo")))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(apiExceptionMessage(e, "Error al unirse al grupo")))
         }
     }
 
@@ -73,7 +67,7 @@ class GroupRepository(
                 })
                 Result.success(body)
             } else {
-                Result.failure(Exception("No autorizado o grupo no encontrado"))
+                Result.failure(Exception(parseApiError(response, "No autorizado o grupo no encontrado")))
             }
         } catch (e: Exception) {
             val cached = participantDao.getParticipants(groupId)
@@ -95,7 +89,7 @@ class GroupRepository(
         return try {
             val response = api.getLeaderboard(groupId)
             if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Error al obtener clasificación"))
+            else Result.failure(Exception(parseApiError(response, "Error al obtener clasificacion")))
         } catch (e: Exception) {
             val cached = participantDao.getParticipants(groupId)
             if (cached.isNotEmpty()) {

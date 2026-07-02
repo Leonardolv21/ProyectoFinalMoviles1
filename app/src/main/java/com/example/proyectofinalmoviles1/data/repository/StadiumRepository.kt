@@ -3,9 +3,10 @@ package com.example.proyectofinalmoviles1.data.repository
 import com.example.proyectofinalmoviles1.data.api.ApiService
 import com.example.proyectofinalmoviles1.data.api.MatchResponse
 import com.example.proyectofinalmoviles1.data.api.StadiumResponse
+import com.example.proyectofinalmoviles1.data.api.apiExceptionMessage
+import com.example.proyectofinalmoviles1.data.api.parseApiError
 import com.example.proyectofinalmoviles1.data.local.dao.MatchDao
 import com.example.proyectofinalmoviles1.data.local.dao.StadiumDao
-import com.example.proyectofinalmoviles1.data.local.entity.MatchEntity
 import com.example.proyectofinalmoviles1.data.local.entity.StadiumEntity
 
 class StadiumRepository(
@@ -24,7 +25,7 @@ class StadiumRepository(
                 })
                 Result.success(stadiums)
             } else {
-                Result.failure(Exception("Error al obtener estadios"))
+                Result.failure(Exception(parseApiError(response, "Error al obtener estadios")))
             }
         } catch (e: Exception) {
             val cached = stadiumDao.getAllStadiums()
@@ -33,7 +34,7 @@ class StadiumRepository(
                     StadiumResponse(it.id, it.name, it.city, it.country, it.latitude, it.longitude, it.capacity)
                 })
             } else {
-                Result.failure(e)
+                Result.failure(Exception(apiExceptionMessage(e, "Error al obtener estadios")))
             }
         }
     }
@@ -42,13 +43,13 @@ class StadiumRepository(
         return try {
             val response = api.getStadiumDetail(stadiumId)
             if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Estadio no encontrado"))
+            else Result.failure(Exception(parseApiError(response, "Estadio no encontrado")))
         } catch (e: Exception) {
             val cached = stadiumDao.getStadium(stadiumId)
             if (cached != null) {
                 Result.success(StadiumResponse(cached.id, cached.name, cached.city, cached.country, cached.latitude, cached.longitude, cached.capacity))
             } else {
-                Result.failure(e)
+                Result.failure(Exception(apiExceptionMessage(e, "Estadio no encontrado")))
             }
         }
     }
@@ -56,10 +57,18 @@ class StadiumRepository(
     suspend fun getStadiumMatches(stadiumId: Int): Result<List<MatchResponse>> {
         return try {
             val response = api.getStadiumMatches(stadiumId)
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Error al obtener partidos del estadio"))
+            if (response.isSuccessful) {
+                val matches = response.body()!!
+                matchDao.insertMatches(matches.map { it.toEntity() })
+                Result.success(matches)
+            } else Result.failure(Exception(parseApiError(response, "Error al obtener partidos del estadio")))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(apiExceptionMessage(e, "Error al obtener partidos del estadio")))
         }
     }
+
+    private fun MatchResponse.toEntity() = com.example.proyectofinalmoviles1.data.local.entity.MatchEntity(
+        id, home_team, away_team, match_date, phase,
+        group_name, status, home_score, away_score, stadium
+    )
 }

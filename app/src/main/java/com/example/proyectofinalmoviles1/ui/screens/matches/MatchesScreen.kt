@@ -16,12 +16,19 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.proyectofinalmoviles1.ServiceLocator
 import com.example.proyectofinalmoviles1.data.UiState
 import com.example.proyectofinalmoviles1.data.api.MatchResponse
+import com.example.proyectofinalmoviles1.data.local.entity.PredictionEntity
 import kotlinx.coroutines.launch
+
+data class MatchesData(
+    val matches: List<MatchResponse> = emptyList(),
+    val predictions: Map<Int, PredictionEntity> = emptyMap()
+)
 
 class MatchesViewModel(application: Application) : AndroidViewModel(application) {
     private val matchRepo = ServiceLocator.matchRepository
+    private val predictionRepo = ServiceLocator.predictionRepository
 
-    var matchesState by mutableStateOf<UiState<List<MatchResponse>>>(UiState.Idle)
+    var matchesState by mutableStateOf<UiState<MatchesData>>(UiState.Idle)
         private set
     var selectedPhase by mutableStateOf("")
     var selectedStatus by mutableStateOf("")
@@ -33,8 +40,9 @@ class MatchesViewModel(application: Application) : AndroidViewModel(application)
         selectedPhase = ""; selectedStatus = ""; selectedDate = ""
         matchesState = UiState.Loading
         viewModelScope.launch {
+            matchRepo.syncUpdates()
             matchRepo.getMatches().fold(
-                onSuccess = { matchesState = UiState.Success(it) },
+                onSuccess = { setMatches(it) },
                 onFailure = { matchesState = UiState.Error(it.message ?: "Error") }
             )
         }
@@ -45,7 +53,7 @@ class MatchesViewModel(application: Application) : AndroidViewModel(application)
         matchesState = UiState.Loading
         viewModelScope.launch {
             matchRepo.getMatches(next = true).fold(
-                onSuccess = { matchesState = UiState.Success(it) },
+                onSuccess = { setMatches(it) },
                 onFailure = { matchesState = UiState.Error(it.message ?: "Error") }
             )
         }
@@ -56,7 +64,7 @@ class MatchesViewModel(application: Application) : AndroidViewModel(application)
         matchesState = UiState.Loading
         viewModelScope.launch {
             matchRepo.getMatches(phase = phase.ifBlank { null }).fold(
-                onSuccess = { matchesState = UiState.Success(it) },
+                onSuccess = { setMatches(it) },
                 onFailure = { matchesState = UiState.Error(it.message ?: "Error") }
             )
         }
@@ -67,7 +75,7 @@ class MatchesViewModel(application: Application) : AndroidViewModel(application)
         matchesState = UiState.Loading
         viewModelScope.launch {
             matchRepo.getMatches(status = status.ifBlank { null }).fold(
-                onSuccess = { matchesState = UiState.Success(it) },
+                onSuccess = { setMatches(it) },
                 onFailure = { matchesState = UiState.Error(it.message ?: "Error") }
             )
         }
@@ -78,10 +86,27 @@ class MatchesViewModel(application: Application) : AndroidViewModel(application)
         matchesState = UiState.Loading
         viewModelScope.launch {
             matchRepo.getMatches(date = date.ifBlank { null }).fold(
-                onSuccess = { matchesState = UiState.Success(it) },
+                onSuccess = { setMatches(it) },
                 onFailure = { matchesState = UiState.Error(it.message ?: "Error") }
             )
         }
+    }
+
+    private suspend fun setMatches(matches: List<MatchResponse>) {
+        val predictions = predictionRepo.getMyPredictions()
+            .getOrNull()
+            ?.associate { prediction ->
+                prediction.match_id to PredictionEntity(
+                    prediction.id,
+                    prediction.match_id,
+                    prediction.home_score,
+                    prediction.away_score,
+                    prediction.points_earned,
+                    prediction.status
+                )
+            }
+            ?: emptyMap()
+        matchesState = UiState.Success(MatchesData(matches, predictions))
     }
 }
 
@@ -149,13 +174,14 @@ fun MatchesScreen(
             is UiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             is UiState.Error -> Text(state.message, color = MaterialTheme.colorScheme.error)
             is UiState.Success -> {
-                if (state.data.isEmpty()) {
+                val data = state.data
+                if (data.matches.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("No se encontraron partidos", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
                     LazyColumn {
-                        items(state.data) { match ->
+                        items(data.matches) { match ->
                             Card(onClick = { onNavigateToMatch(match.id) }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                                 Column(Modifier.padding(12.dp)) {
                                     Text("${match.home_team} vs ${match.away_team}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
@@ -168,6 +194,15 @@ fun MatchesScreen(
                                         Text(scoreText, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                                         Spacer(Modifier.width(8.dp))
                                         Text(match.status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    data.predictions[match.id]?.let { prediction ->
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            "Mi pronóstico: ${prediction.homeScore} - ${prediction.awayScore}" +
+                                                (prediction.pointsEarned?.let { " · $it pts" } ?: ""),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.secondary
+                                        )
                                     }
                                 }
                             }

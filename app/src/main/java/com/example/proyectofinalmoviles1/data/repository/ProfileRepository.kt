@@ -2,6 +2,8 @@ package com.example.proyectofinalmoviles1.data.repository
 
 import com.example.proyectofinalmoviles1.data.api.ApiService
 import com.example.proyectofinalmoviles1.data.api.ProfileResponse
+import com.example.proyectofinalmoviles1.data.api.apiExceptionMessage
+import com.example.proyectofinalmoviles1.data.api.parseApiError
 import com.example.proyectofinalmoviles1.data.local.dao.UserDao
 import com.example.proyectofinalmoviles1.data.local.entity.UserEntity
 
@@ -17,14 +19,14 @@ class ProfileRepository(
                 userDao.insertUser(UserEntity(name = body.name, email = body.email))
                 Result.success(body)
             } else {
-                Result.failure(Exception("Error al obtener perfil"))
+                Result.failure(Exception(parseApiError(response, "Error al obtener perfil")))
             }
         } catch (e: Exception) {
             val cached = userDao.getUser()
             if (cached != null) {
                 Result.success(ProfileResponse(cached.name, cached.email, 0, 0, 0))
             } else {
-                Result.failure(e)
+                Result.failure(Exception(apiExceptionMessage(e, "Error al obtener perfil")))
             }
         }
     }
